@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Mastodon 生成器 (iOS版)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        /* --- 变数与基础 --- */
+        :root {
+            --bg-body: #111;
+            --bg-card: #282c37;
+            --bg-input: #1f2229;
+            --text-primary: #ffffff;
+            --text-secondary: #9baec8;
+            --accent: #6364ff;
+            --border-color: #393f4f;
+            --safe-area-bottom: env(safe-area-inset-bottom);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* 固定高度，内容滚动 */
+            overflow: hidden;
+        }
+
+        /* --- 布局容器 --- */
+        .app-container {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: calc(60px + var(--safe-area-bottom)); /* 留出底部导航空间 */
+        }
+
+        /* 标签页切换逻辑 */
+        .tab-content { display: none; padding: 20px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* --- 表单样式 (iOS 风格) --- */
+        .form-section {
+            background: #1c1c1e;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 10px; font-weight: 600;
+        }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group:last-child { margin-bottom: 0; }
+
+        label { display: block; margin-bottom: 6px; font-size: 14px; color: #ccc; }
+
+        /* iOS Input 优化: 16px 防止缩放, 移除默认外观 */
+        input[type="text"], input[type="number"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 1px solid #333;
+            color: white;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px; 
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        
+        textarea { height: 100px; resize: none; font-family: inherit; }
+
+        input[type="file"] {
+            background: var(--bg-input); padding: 10px; border-radius: 8px; font-size: 14px; width: 100%;
+        }
+
+        /* 单选按钮组 */
+        .radio-group {
+            display: flex; background: var(--bg-input); border-radius: 8px; pading: 2px;
+        }
+        .radio-group label {
+            flex: 1; text-align: center; padding: 10px; margin: 0;
+            font-size: 13px; color: #888; border-radius: 6px; transition: 0.2s;
+        }
+        .radio-group input { display: none; }
+        .radio-group input:checked + label { background: #3a3a3c; color: #fff; font-weight: bold; }
+
+        /* --- 预览卡片样式 --- */
+        .preview-wrapper {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 60vh;
+        }
+
+        .toot-card {
+            background-color: var(--bg-card);
+            width: 100%; max-width: 500px;
+            padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+            margin-bottom: 30px;
+        }
+
+        /* 卡片内部元素 */
+        .toot-header { display: flex; align-items: center; margin-bottom: 12px; }
+        .avatar { width: 46px; height: 46px; border-radius: 5px; object-fit: cover; margin-right: 12px; background: #333; }
+        .user-meta { display: flex; flex-direction: column; overflow: hidden; }
+        .display-name { font-weight: 700; font-size: 15px; color: #fff; }
+        .username { color: var(--text-secondary); font-size: 14px; }
+        
+        .toot-content { font-size: 18px; line-height: 1.5; color: #ddd; margin-bottom: 15px; white-space: pre-wrap; word-wrap: break-word; }
+        .toot-content a { color: var(--accent); text-decoration: none; }
+
+        .media-container {
+            margin-top: 10px; border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--border-color); display: none; background: #000;
+        }
+        /* 两种图片模式 */
+        .media-image { display: block; width: 100%; height: auto; object-fit: contain; }
+        .media-image.mode-cover { height: 250px; object-fit: cover; }
+
+        .toot-date { color: var(--text-secondary); font-size: 14px; margin: 15px 0; }
+        .divider { height: 1px; background: var(--border-color); margin: 0; }
+        .stats-bar { padding: 12px 0; display: flex; gap: 20px; font-size: 14px; }
+        .stats-bar strong { color: #fff; }
+        .action-bar { display: flex; justify-content: space-between; padding-top: 10px; color: var(--text-secondary); font-size: 18px; }
+
+        /* --- 底部导航栏 (Mobile) --- */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(28, 28, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #333;
+            display: flex; justify-content: space-around;
+            padding-bottom: var(--safe-area-bottom);
+            z-index: 100;
+        }
+
+        .nav-item {
+            flex: 1; text-align: center; padding: 12px 0;
+            color: #888; font-size: 10px; cursor: pointer;
+        }
+        .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
+        .nav-item.active { color: var(--accent); }
+
+        /* --- 下载按钮 --- */
+        .btn-main {
+            width: 100%; max-width: 500px;
+            background: var(--accent); color: white;
+            padding: 15px; border-radius: 12px; border: none;
+            font-size: 17px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-main:active { opacity: 0.8; transform: scale(0.98); }
+
+        /* --- 生成图片结果 Modal --- */
+        #resultModal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 200;
+            flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;
+        }
+        #resultImg { max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: 0 0 20px rgba(255,255,255,0.1); }
+        .modal-tip { color: #fff; margin-top: 15px; font-size: 14px; text-align: center; }
+        .close-modal { position: absolute; top: 40px; right: 20px; color: #fff; font-size: 30px; cursor: pointer; }
+
+        /* --- 桌面端适配 (Media Query) --- */
+        @media (min-width: 768px) {
+            body { overflow: visible; height: auto; }
+            .bottom-nav { display: none; } /* 隐藏底部导航 */
+            
+            .app-container {
+                display: flex; max-width: 1200px; margin: 0 auto; padding: 0; overflow: visible;
+            }
+            
+            .tab-content { display: block !important; opacity: 1; padding: 20px; }
+            
+            #tab-edit {
+                width: 350px; border-right: 1px solid #333; background: #111;
+                height: 100vh; overflow-y: auto; position: sticky; top: 0;
+            }
+            
+            #tab-preview {
+                flex: 1; background: #191b22; display: flex !important; 
+                flex-direction: column; align-items: center; justify-content: center;
+            }
+
+            .form-section { background: transparent; padding: 0; }
+            /* 隐藏预览页的"切换提示" */
+            .mobile-only-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <!-- Tab 1: 编辑器 -->
+    <div id="tab-edit" class="tab-content active">
+        <h2 style="margin-top:0; color:var(--accent);"><i class="fa-brands fa-mastodon"></i> 贴文编辑</h2>
+        
+        <div class="form-section">
+            <div class="section-title">用户资讯</div>
+            <div class="form-group">
+                <label>显示名称</label>
+                <input type="text" id="inputName" value="Mastodon User" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+                <label>账号 ID</label>
+                <input type="text" id="inputHandle" value="@user@instance.social" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+                <label>头像 (点击选择)</label>
+                <input type="file" id="fileAvatar" accept="image/*" onchange="handleFile(this, 'dispAvatar')">
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">内容与媒体</div>
+            <div class="form-group">
+                <label>贴文内容</label>
+                <textarea id="inputContent" oninput="updatePreview()">请输入文字...</textarea>
+            </div>
+            <div class="form-group">
+                <label>附图 (可选)</label>
+                <input type="file" id="fileMedia" accept="image/*" onchange="handleFile(this, 'dispImage', true)">
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                    <button onclick="clearMedia()" style="padding:8px 15px; background:#333; color:white; border:none; border-radius:6px;">清除</button>
+                    <span style="font-size:12px; color:#666;">或选择显示模式：</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="radio-group">
+                    <input type="radio" id="modeFull" name="imgMode" value="full" checked onchange="updateImgMode()">
+                    <label for="modeFull">完整原图 (Full)</label>
+                    <input type="radio" id="modeCover" name="imgMode" value="cover" onchange="updateImgMode()">
+                    <label for="modeCover">裁切填充 (Crop)</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <div class="section-title">数据与时间</div>
+            <div class="form-group">
+                <label>时间字串</label>
+                <input type="text" id="inputTime" value="Jan 16, 2026, 5:00 PM" oninput="updatePreview()">
+            </div>
+            <div style="display:flex; gap:15px;">
+                <div class="form-group" style="flex:1;">
+                    <label>转发</label>
+                    <input type="number" id="inputBoosts" value="88" oninput="updatePreview()">
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>收藏</label>
+                    <input type="number" id="inputFavs" value="256" oninput="updatePreview()">
+                </div>
+            </div>
+        </div>
+
+        <div class="mobile-only-hint" style="text-align:center; color:#666; font-size:13px; margin-bottom: 50px;">
+            编辑完成后，请点击下方「预览」按钮生成图片
+        </div>
+    </div>
+
+    <!-- Tab 2: 预览与下载 -->
+    <div id="tab-preview" class="tab-content">
+        <div class="preview-wrapper">
+            
+            <!-- 实际截图目标 -->
+            <div class="toot-card" id="captureTarget">
+                <div class="toot-header">
+                    <img src="https://files.mastodon.social/accounts/avatars/000/000/001/original/1.png" id="dispAvatar" class="avatar" crossorigin="anonymous">
+                    <div class="user-meta">
+                        <div class="display-name" id="dispName">Mastodon User</div>
+                        <div class="username" id="dispHandle">@user@instance.social</div>
+                    </div>
+                </div>
+
+                <div class="toot-content" id="dispContent"></div>
+
+                <div class="media-container" id="mediaContainer">
+                    <img src="" id="dispImage" class="media-image mode-full" crossorigin="anonymous">
+                </div>
+
+                <div class="toot-date">
+                    <span id="dispTime">Jan 16, 2026, 5:00 PM</span> · 
+                    <i class="fa-solid fa-mobile-screen"></i> iOS
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="stats-bar">
+                    <div><strong id="dispBoosts">88</strong> <span>Boosts</span></div>
+                    <div><strong id="dispFavs">256</strong> <span>Favorites</span></div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="action-bar">
+                    <i class="fa-solid fa-reply"></i>
+                    <i class="fa-solid fa-retweet"></i>
+                    <i class="fa-solid fa-star"></i>
+                    <i class="fa-solid fa-bookmark"></i>
+                    <i class="fa-solid fa-share-nodes"></i>
+                </div>
+            </div>
+
+            <!-- 下载操作区 -->
+            <button class="btn-main" onclick="generateImage()">
+                <i class="fa-solid fa-image"></i> 生成图片
+            </button>
+            <p style="color:#666; font-size:12px; margin-top:15px; text-align:center;">
+                生成后长按图片即可保存到相簿
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- 底部导航 (仅移动端) -->
+<div class="bottom-nav">
+    <div class="nav-item active" onclick="switchTab('edit')">
+        <i class="fa-solid fa-pen-to-square"></i>
+        编辑
+    </div>
+    <div class="nav-item" onclick="switchTab('preview')">
+        <i class="fa-solid fa-eye"></i>
+        预览
+    </div>
+</div>
+
+<!-- 图片结果弹窗 (覆盖全屏) -->
+<div id="resultModal">
+    <div class="close-modal" onclick="closeModal()">&times;</div>
+    <img id="resultImg" alt="Generated Image">
+    <div class="modal-tip">长按上方图片 -> 储存至照片</div>
+</div>
+
+<script>
+    // 初始化
+    window.onload = function() {
+        updatePreview();
+    };
+
+    // Tab 切换逻辑
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById('tab-' + tabName).classList.add('active');
+        
+        // 更新按钮状态
+        const navIndex = tabName === 'edit' ? 0 : 1;
+        document.querySelectorAll('.nav-item')[navIndex].classList.add('active');
+    }
+
+    // 更新文字预览
+    function updatePreview() {
+        document.getElementById('dispName').innerText = document.getElementById('inputName').value;
+        document.getElementById('dispHandle').innerText = document.getElementById('inputHandle').value;
+        document.getElementById('dispTime').innerText = document.getElementById('inputTime').value;
+        document.getElementById('dispBoosts').innerText = document.getElementById('inputBoosts').value;
+        document.getElementById('dispFavs').innerText = document.getElementById('inputFavs').value;
+
+        const content = document.getElementById('inputContent').value;
+        let formattedContent = content
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/(#\w+)/g, '<a href="#">$1</a>')
+            .replace(/(@\w+(@\w+\.\w+)?)/g, '<a href="#">$1</a>')
+            .replace(/(https?:\/\/[^\s]+)/g, '<a href="#">$1</a>');
+        document.getElementById('dispContent').innerHTML = formattedContent;
+    }
+
+    // 处理图片上传
+    function handleFile(input, imgId, isMedia = false) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById(imgId);
+                img.src = e.target.result;
+                if (isMedia) document.getElementById('mediaContainer').style.display = 'block';
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // 清除媒体
+    function clearMedia() {
+        document.getElementById('fileMedia').value = '';
+        document.getElementById('dispImage').src = '';
+        document.getElementById('mediaContainer').style.display = 'none';
+    }
+
+    // 更新图片模式
+    function updateImgMode() {
+        const img = document.getElementById('dispImage');
+        const isFull = document.getElementById('modeFull').checked;
+        img.className = isFull ? 'media-image mode-full' : 'media-image mode-cover';
+    }
+
+    // 生成图片并显示 Modal
+    function generateImage() {
+        const captureElement = document.getElementById('captureTarget');
+        const btn = document.querySelector('.btn-main');
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 处理中...';
+        
+        // 临时移除阴影以获得更干净的边缘 (可选)
+        const originalBoxShadow = captureElement.style.boxShadow;
+        captureElement.style.boxShadow = 'none';
+
+        html2canvas(captureElement, {
+            scale: 3, // 手机屏幕通常需要更高的缩放
+            backgroundColor: null,
+            useCORS: true,
+            allowTaint: true
+        }).then(canvas => {
+            // 恢复阴影
+            captureElement.style.boxShadow = originalBoxShadow;
+            
+            // 显示结果 Modal
+            const imgData = canvas.toDataURL('image/png');
+            document.getElementById('resultImg').src = imgData;
+            document.getElementById('resultModal').style.display = 'flex';
+            
+            btn.innerHTML = originalText;
+        }).catch(err => {
+            alert('生成失败，请重试');
+            btn.innerHTML = originalText;
+            console.error(err);
+        });
+    }
+
+    function closeModal() {
+        document.getElementById('resultModal').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
