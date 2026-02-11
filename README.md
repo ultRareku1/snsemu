@@ -1,3 +1,3 @@
-# snsemu - create an customized sns post snapshot
+# snsemu - create an customized sns chats and posts snapshot
 
-SNS posts customized editor. Until now have 2 platforms. 
+Under construction.
