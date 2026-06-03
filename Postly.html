@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post Snapshot Creator</title>
+<link href="https://fonts.googleapis.com/css2?family=Chirp:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --x-bg: #000000;
+    --x-card: #16181c;
+    --x-border: #2f3336;
+    --x-text: #e7e9ea;
+    --x-secondary: #71767b;
+    --x-blue: #1d9bf0;
+    --x-hover: #1a1a1a;
+    --editor-bg: #0d0d0d;
+    --accent: #1d9bf0;
+    --accent-glow: rgba(29, 155, 240, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "PingFang SC", "PingFang TC", "Hiragino Sans", "Microsoft YaHei", "Microsoft JhengHei", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", sans-serif;
+    background: var(--editor-bg);
+    color: var(--x-text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(29,155,240,0.06) 0%, transparent 60%),
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .header h1 svg {
+    width: 28px;
+    height: 28px;
+    fill: var(--x-text);
+  }
+
+  .header p {
+    color: var(--x-secondary);
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+    animation: fadeUp 0.7s ease 0.15s both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 840px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ── Editor Panel ── */
+  .editor-panel {
+    background: var(--x-card);
+    border: 1px solid var(--x-border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+
+  .editor-panel h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: var(--x-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .editor-panel h2::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 4px;
+  }
+
+  .field {
+    margin-bottom: 20px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--x-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .field input[type="text"],
+  .field textarea {
+    width: 100%;
+    background: var(--x-bg);
+    border: 1px solid var(--x-border);
+    color: var(--x-text);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: inherit;
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  .field input[type="text"]:focus,
+  .field textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .field textarea {
+    resize: vertical;
+    min-height: 100px;
+    line-height: 1.5;
+  }
+
+  .avatar-upload {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .avatar-preview {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--x-border);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--x-border);
+    transition: border-color 0.2s;
+  }
+
+  .avatar-preview:hover {
+    border-color: var(--accent);
+  }
+
+  .avatar-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-preview svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--x-secondary);
+  }
+
+  .upload-btn {
+    background: var(--x-bg);
+    border: 1px dashed var(--x-border);
+    color: var(--x-secondary);
+    padding: 10px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+
+  .upload-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .image-upload-zone {
+    border: 1px dashed var(--x-border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .image-upload-zone:hover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .image-upload-zone.has-image {
+    padding: 0;
+    border-style: solid;
+  }
+
+  .image-upload-zone img {
+    width: 100%;
+    border-radius: 11px;
+    display: block;
+  }
+
+  .image-upload-zone .placeholder {
+    color: var(--x-secondary);
+    font-size: 14px;
+  }
+
+  .image-upload-zone .placeholder svg {
+    display: block;
+    margin: 0 auto 8px;
+    width: 32px;
+    height: 32px;
+    fill: var(--x-secondary);
+  }
+
+  .remove-img {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.75);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+  }
+
+  .remove-img:hover { background: rgba(220,40,40,0.8); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+  }
+
+  .toggle-row span {
+    font-size: 14px;
+    color: var(--x-secondary);
+  }
+
+  .toggle {
+    width: 44px;
+    height: 24px;
+    background: var(--x-border);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    border: none;
+  }
+
+  .toggle.active { background: var(--accent); }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.25s;
+  }
+
+  .toggle.active::after { transform: translateX(20px); }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .stats-row .field { margin-bottom: 0; }
+
+  .stats-row input {
+    text-align: center;
+    padding: 10px 6px !important;
+    font-size: 13px !important;
+  }
+
+  .stats-row label {
+    text-align: center;
+    font-size: 11px !important;
+  }
+
+  .btn-export {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-export:hover {
+    background: #1a8cd8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+
+  .btn-export:active { transform: translateY(0); }
+
+  /* ── Preview Panel ── */
+  .preview-panel {
+    position: sticky;
+    top: 32px;
+  }
+
+  .preview-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--x-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* ── The X Post Card ── */
+  #post-card {
+    background: var(--x-bg);
+    border: 1px solid var(--x-border);
+    border-radius: 0;
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "PingFang TC", "Hiragino Sans", "Microsoft YaHei", "Microsoft JhengHei", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", Helvetica, Arial, sans-serif;
+  }
+
+  .post-top {
+    display: flex;
+    gap: 12px;
+  }
+
+  .post-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--x-border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .post-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .post-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.3;
+  }
+
+  .post-displayname {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--x-text);
+  }
+
+  .post-verified {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .post-verified svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .post-handle {
+    color: var(--x-secondary);
+    font-size: 15px;
+  }
+
+  .post-dot {
+    color: var(--x-secondary);
+    font-size: 15px;
+  }
+
+  .post-time {
+    color: var(--x-secondary);
+    font-size: 15px;
+  }
+
+  .post-body {
+    margin-top: 4px;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--x-text);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .post-image {
+    margin-top: 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--x-border);
+  }
+
+  .post-image img {
+    width: 100%;
+    display: block;
+    max-height: 510px;
+    object-fit: cover;
+  }
+
+  .post-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-right: 48px;
+  }
+
+  .post-action {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--x-secondary);
+    font-size: 13px;
+  }
+
+  .post-action svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--x-secondary);
+    stroke-width: 1.8;
+  }
+
+  .post-action.likes { color: var(--x-secondary); }
+
+  /* ── Disclaimer footer ── */
+  .disclaimer {
+    max-width: 720px;
+    margin: 40px auto 0;
+    padding: 16px 20px;
+    background: var(--x-card);
+    border: 1px solid var(--x-border);
+    border-radius: 12px;
+    color: var(--x-secondary);
+    font-size: 12.5px;
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  /* ── Device frames (multi-platform screenshot) ── */
+  #device-frame {
+    transition: max-width 0.3s ease;
+    background: var(--x-bg);
+  }
+
+  #device-frame.platform-pc {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    max-width: 100%;
+  }
+
+  #device-frame.platform-android {
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    max-width: 380px;
+    margin: 0 auto;
+  }
+
+  /* hide all chrome by default */
+  .pc-chrome, .android-statusbar, .android-appbar, .android-tabbar { display: none; }
+
+  #device-frame.platform-pc .pc-chrome { display: block; }
+  #device-frame.platform-android .android-statusbar,
+  #device-frame.platform-android .android-appbar,
+  #device-frame.platform-android .android-tabbar { display: flex; }
+
+  /* card sits flush inside chrome */
+  #device-frame.platform-pc #post-card,
+  #device-frame.platform-android #post-card {
+    border-left: none;
+    border-right: none;
+    border-top: none;
+  }
+  #device-frame.platform-android #post-card { border-bottom: none; }
+
+  /* ---- PC browser chrome ---- */
+  .pc-chrome { background: #2b2d31; }
+
+  .pc-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px 0;
+  }
+
+  .pc-dots { display: flex; gap: 7px; }
+  .pc-dots span {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .pc-dots span:nth-child(1) { background: #ff5f57; }
+  .pc-dots span:nth-child(2) { background: #febc2e; }
+  .pc-dots span:nth-child(3) { background: #28c840; }
+
+  .pc-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--x-bg);
+    color: var(--x-text);
+    font-size: 12.5px;
+    padding: 8px 16px;
+    border-radius: 9px 9px 0 0;
+    max-width: 280px;
+  }
+  .pc-tab svg { width: 13px; height: 13px; fill: var(--x-text); flex-shrink: 0; }
+  .pc-tab span {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .pc-urlbar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--x-bg);
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--x-border);
+  }
+  .pc-urlbar .pc-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #202327;
+    border-radius: 18px;
+    padding: 7px 16px;
+    flex: 1;
+    color: var(--x-secondary);
+    font-size: 13px;
+  }
+  .pc-urlbar svg { width: 13px; height: 13px; fill: var(--x-secondary); flex-shrink: 0; }
+  .pc-urlbar .pc-url { color: var(--x-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---- Android status bar ---- */
+  .android-statusbar {
+    background: var(--x-bg);
+    padding: 9px 18px 5px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .android-statusbar .and-time {
+    color: var(--x-text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .android-statusbar .and-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .android-statusbar .and-icons svg { width: 15px; height: 15px; fill: var(--x-text); }
+
+  /* ---- Android app bar ---- */
+  .android-appbar {
+    background: var(--x-bg);
+    align-items: center;
+    gap: 22px;
+    padding: 12px 18px;
+  }
+  .android-appbar svg.and-back { width: 20px; height: 20px; fill: var(--x-text); }
+  .android-appbar .and-title { color: var(--x-text); font-size: 19px; font-weight: 700; }
+
+  /* ---- Android bottom tab bar ---- */
+  .android-tabbar {
+    background: var(--x-bg);
+    border-top: 1px solid var(--x-border);
+    align-items: center;
+    justify-content: space-around;
+    padding: 13px 14px 16px;
+  }
+  .android-tabbar svg { width: 22px; height: 22px; fill: none; stroke: var(--x-text); stroke-width: 2; }
+  .android-tabbar svg.filled { fill: var(--x-text); stroke: none; }
+
+  /* segmented platform switcher */
+  .seg {
+    display: flex;
+    gap: 0;
+    background: var(--x-bg);
+    border: 1px solid var(--x-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .seg button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--x-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .seg button svg { width: 15px; height: 15px; fill: currentColor; }
+  .seg button:hover { color: var(--x-text); }
+  .seg button.active { background: var(--accent); color: #fff; }
+
+  /* ── Language switcher ── */
+  .lang-switcher {
+    display: inline-flex;
+    gap: 4px;
+    margin-top: 18px;
+    padding: 4px;
+    background: var(--x-card);
+    border: 1px solid var(--x-border);
+    border-radius: 12px;
+  }
+
+  .lang-btn {
+    background: transparent;
+    border: none;
+    color: var(--x-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .lang-btn:hover { color: var(--x-text); }
+
+  .lang-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ── Canvas for export ── */
+  canvas { display: none; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .app { padding: 20px 12px; }
+    .editor-panel { padding: 20px; }
+    .row { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .header h1 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <h1>
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.92 2 10.5c0 2.54 1.38 4.81 3.56 6.33-.13 1.27-.6 2.78-1.56 3.67 1.7-.2 3.2-.86 4.4-1.78.97.25 2 .38 3.07.38 5.52 0 10-3.92 10-8.5S17.52 2 12 2z"/></svg>
+      <span data-i18n="title">Post Snapshot Creator</span>
+    </h1>
+    <p data-i18n="subtitle">Design fictional social post mockups — customize everything, export as image.</p>
+    <div class="lang-switcher">
+      <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
+      <button class="lang-btn" data-lang="zh-CN" onclick="setLanguage('zh-CN')">简体中文</button>
+      <button class="lang-btn" data-lang="zh-TW" onclick="setLanguage('zh-TW')">繁體中文</button>
+      <button class="lang-btn" data-lang="ja" onclick="setLanguage('ja')">日本語</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Editor -->
+    <div class="editor-panel">
+      <h2 data-i18n="customize">Customize Post</h2>
+
+      <div class="field">
+        <label data-i18n="platform">Screenshot Style</label>
+        <div class="seg" id="platformSeg">
+          <button class="active" data-platform="plain" onclick="setPlatform('plain')">
+            <span data-i18n="platPlain">Plain</span>
+          </button>
+          <button data-platform="pc" onclick="setPlatform('pc')">
+            <svg viewBox="0 0 24 24"><path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
+            <span data-i18n="platPC">PC Web</span>
+          </button>
+          <button data-platform="android" onclick="setPlatform('android')">
+            <svg viewBox="0 0 24 24"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg>
+            <span data-i18n="platAndroid">Android</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="avatar">Avatar</label>
+        <div class="avatar-upload">
+          <div class="avatar-preview" id="avatarPreview">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          </div>
+          <button class="upload-btn" data-i18n="chooseImage" onclick="document.getElementById('avatarInput').click()">Choose Image</button>
+          <input type="file" id="avatarInput" accept="image/*" hidden>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label data-i18n="displayName">Display Name</label>
+          <input type="text" id="displayName" value="Alex Rivera" placeholder="Display Name" data-i18n-ph="phName">
+        </div>
+        <div class="field">
+          <label data-i18n="handle">Handle</label>
+          <input type="text" id="handle" value="@alexrivera" placeholder="@handle" data-i18n-ph="phHandle">
+        </div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="postTime">Post Time</label>
+        <input type="text" id="postTime" value="2h" placeholder="e.g. 2h, 5m, Jan 12" data-i18n-ph="phTime">
+      </div>
+
+      <div class="toggle-row">
+        <span data-i18n="verified">Verified Badge</span>
+        <button class="toggle active" id="verifiedToggle" onclick="toggleVerified()"></button>
+      </div>
+
+      <div class="field">
+        <label data-i18n="content">Post Content</label>
+        <textarea id="postContent" placeholder="What is happening?!" data-i18n-ph="phContent">The future is going to be so exciting. 🚀
+
+Just wait and see.</textarea>
+      </div>
+
+      <div class="field">
+        <label data-i18n="postImageLabel">Post Image (optional)</label>
+        <div class="image-upload-zone" id="imageZone" onclick="document.getElementById('postImageInput').click()">
+          <div class="placeholder" id="imagePlaceholder">
+            <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            <span data-i18n="uploadImage">Click to upload image</span>
+          </div>
+        </div>
+        <input type="file" id="postImageInput" accept="image/*" hidden>
+      </div>
+
+      <div class="field">
+        <label data-i18n="engagement">Engagement Stats</label>
+        <div class="stats-row">
+          <div class="field">
+            <label data-i18n="replies">Replies</label>
+            <input type="text" id="statReplies" value="1.2K">
+          </div>
+          <div class="field">
+            <label data-i18n="reposts">Reposts</label>
+            <input type="text" id="statReposts" value="8.5K">
+          </div>
+          <div class="field">
+            <label data-i18n="likes">Likes</label>
+            <input type="text" id="statLikes" value="52.3K">
+          </div>
+          <div class="field">
+            <label data-i18n="views">Views</label>
+            <input type="text" id="statViews" value="4.2M">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-export" onclick="exportImage()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span data-i18n="export">Export as PNG</span>
+      </button>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-panel">
+      <div class="preview-label" data-i18n="livePreview">Live Preview</div>
+      <div id="device-frame" class="platform-plain">
+
+        <!-- PC browser chrome -->
+        <div class="pc-chrome">
+          <div class="pc-titlebar">
+            <div class="pc-dots"><span></span><span></span><span></span></div>
+            <div class="pc-tab">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 5.92 2 10.5c0 2.54 1.38 4.81 3.56 6.33-.13 1.27-.6 2.78-1.56 3.67 1.7-.2 3.2-.86 4.4-1.78.97.25 2 .38 3.07.38 5.52 0 10-3.92 10-8.5S17.52 2 12 2z"/></svg>
+              <span id="pcTabTitle">Alex Rivera on Postly</span>
+            </div>
+          </div>
+          <div class="pc-urlbar">
+            <div class="pc-pill">
+              <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+              <span class="pc-url" id="pcUrl">postly.example/alexrivera/post/1789453821</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Android status bar -->
+        <div class="android-statusbar">
+          <span class="and-time" id="andTime">9:41</span>
+          <div class="and-icons">
+            <svg viewBox="0 0 24 24"><path d="M2 22h20V2L2 22z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 4C7 4 2.7 6.1 0 9.4L12 24 24 9.4C21.3 6.1 17 4 12 4z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+          </div>
+        </div>
+
+        <!-- Android app bar -->
+        <div class="android-appbar">
+          <svg class="and-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          <span class="and-title" data-i18n="postLabel">Post</span>
+        </div>
+
+        <div id="post-card">
+        <div class="post-top">
+          <div class="post-avatar" id="postAvatar">
+            <img id="postAvatarImg" src="" style="display:none;">
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div class="post-header">
+              <span class="post-displayname" id="postDisplayName">Alex Rivera</span>
+              <span class="post-verified" id="postVerified">
+                <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="10" fill="#1d9bf0"/><path d="M9.4 14.6l-3-3 1.3-1.3 1.7 1.7 4.2-4.2 1.3 1.3z" fill="#fff"/></svg>
+              </span>
+              <span class="post-handle" id="postHandle">@alexrivera</span>
+              <span class="post-dot">·</span>
+              <span class="post-time" id="postTimeDisplay">2h</span>
+            </div>
+            <div class="post-body" id="postBody">The future is going to be so exciting. 🚀
+
+Just wait and see.</div>
+            <div class="post-image" id="postImage" style="display:none;">
+              <img id="postImageDisplay" src="">
+            </div>
+            <div class="post-actions">
+              <div class="post-action">
+                <svg viewBox="0 0 24 24"><path d="M1.751 10c-.036-4.479 3.584-8.25 8.036-8.25 2.25 0 4.27.945 5.713 2.452a7.932 7.932 0 0 1 5.713-2.452c4.459 0 8.072 3.771 8.036 8.25-.037 4.795-4.167 8.677-10.396 14.15l-.09.08a1.577 1.577 0 0 1-2.114-.003l-.098-.088C10.303 18.677 5.788 14.795 5.751 10z" style="transform: scale(0.7) translate(4px, 5px)"/></svg>
+                <span id="actionReplies">1.2K</span>
+              </div>
+              <div class="post-action">
+                <svg viewBox="0 0 24 24"><path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.791 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z" style="transform: scale(0.68) translate(4px, 5px)" fill="var(--x-secondary)"/></svg>
+                <span id="actionReposts">8.5K</span>
+              </div>
+              <div class="post-action likes">
+                <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.965 3.036 4.16 6.105 6.715l.02.016a.994.994 0 001.004 0l.022-.017c3.068-2.554 5.03-4.75 6.104-6.715 1.112-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91z" style="transform: scale(0.68) translate(5px, 5px)" fill="var(--x-secondary)"/></svg>
+                <span id="actionLikes">52.3K</span>
+              </div>
+              <div class="post-action">
+                <svg viewBox="0 0 24 24"><path d="M8.75 21V3h2v18h-2zM18.2 12l-5.45-5.45 1.41-1.41L21.03 12l-6.87 6.87-1.41-1.42L18.2 12zM2.97 12l6.87-6.86 1.41 1.41L5.8 12l5.45 5.45-1.41 1.42L2.97 12z" style="transform: scale(0.58) translate(7px, 8px)" fill="var(--x-secondary)"/></svg>
+                <span id="actionViews">4.2M</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div><!-- /#post-card -->
+
+        <!-- Android bottom tab bar -->
+        <div class="android-tabbar">
+          <svg class="filled" viewBox="0 0 24 24"><path d="M12 1.696L.622 8.807l1.06 1.696L3 9.679V19.5C3 20.881 4.119 22 5.5 22h13c1.381 0 2.5-1.119 2.5-2.5V9.679l1.318.824 1.06-1.696L12 1.696z"/></svg>
+          <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M16.5 7.5a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0zM4 19c0-2.5 2.5-4.5 5.5-4.5"/><path d="M18 13a3 3 0 100-6"/><path d="M21 19c0-2-1.5-3.7-3.7-4.3"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 5.6 2 10c0 2.3 1.2 4.4 3.2 5.8-.2 1.3-.8 2.6-1.7 3.6 1.6-.2 3.1-.8 4.4-1.7 1.3.4 2.7.6 4.1.6 5.5 0 10-3.6 10-8s-4.5-8-10-8z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M3 6l9 6 9-6"/></svg>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer" data-i18n="disclaimer">
+    This tool generates fictional, parody mockups for design, education, and entertainment only. "Postly" is a fictional platform and is not affiliated with any real social network. Do not use these images to impersonate real people or organizations, to attribute statements anyone did not make, or in any deceptive or unlawful way. You are responsible for the content you create.
+  </div>
+</div>
+
+<script>
+  // ── Translations ──
+  const I18N = {
+    'en': {
+      title: 'Post Snapshot Creator',
+      subtitle: 'Design fictional social post mockups — customize everything, export as image.',
+      customize: 'Customize Post',
+      avatar: 'Avatar',
+      chooseImage: 'Choose Image',
+      displayName: 'Display Name',
+      handle: 'Handle',
+      postTime: 'Post Time',
+      verified: 'Verified Badge',
+      content: 'Post Content',
+      postImageLabel: 'Post Image (optional)',
+      uploadImage: 'Click to upload image',
+      engagement: 'Engagement Stats',
+      replies: 'Replies',
+      reposts: 'Reposts',
+      likes: 'Likes',
+      views: 'Views',
+      export: 'Export as PNG',
+      livePreview: 'Live Preview',
+      phName: 'Display Name',
+      phHandle: '@handle',
+      phTime: 'e.g. 2h, 5m, Jan 12',
+      phContent: 'What is happening?!',
+      platform: 'Screenshot Style',
+      platPlain: 'Plain',
+      platPC: 'PC Web',
+      platAndroid: 'Android',
+      postLabel: 'Post',
+      disclaimer: 'This tool generates fictional, parody mockups for design, education, and entertainment only. "Postly" is a fictional platform and is not affiliated with any real social network. Do not use these images to impersonate real people or organizations, to attribute statements anyone did not make, or in any deceptive or unlawful way. You are responsible for the content you create.'
+    },
+    'zh-CN': {
+      title: '推文快照生成器',
+      subtitle: '制作虚构的社交帖子样张 —— 自由定制内容，导出为图片。',
+      customize: '自定义帖子',
+      avatar: '头像',
+      chooseImage: '选择图片',
+      displayName: '昵称',
+      handle: '用户名',
+      postTime: '发布时间',
+      verified: '认证徽章',
+      content: '帖子内容',
+      postImageLabel: '配图（可选）',
+      uploadImage: '点击上传图片',
+      engagement: '互动数据',
+      replies: '回复',
+      reposts: '转推',
+      likes: '喜欢',
+      views: '查看',
+      export: '导出为 PNG',
+      livePreview: '实时预览',
+      phName: '昵称',
+      phHandle: '@用户名',
+      phTime: '例如：2小时、5分钟、1月12日',
+      phContent: '有什么新鲜事？！',
+      platform: '截图样式',
+      platPlain: '纯净',
+      platPC: '电脑网页',
+      platAndroid: '安卓手机',
+      postLabel: '帖子',
+      disclaimer: '本工具仅用于设计、教育和娱乐目的，生成的是虚构的、戏仿性质的样张。“Postly”为虚构平台，与任何真实社交网络无关。请勿使用这些图片冒充真实个人或机构、捏造他人未曾发表的言论，或用于任何欺骗性或非法用途。您需对自己创建的内容负责。'
+    },
+    'zh-TW': {
+      title: '推文快照產生器',
+      subtitle: '製作虛構的社群貼文樣張 —— 自由自訂內容，匯出為圖片。',
+      customize: '自訂貼文',
+      avatar: '頭像',
+      chooseImage: '選擇圖片',
+      displayName: '暱稱',
+      handle: '使用者名稱',
+      postTime: '發佈時間',
+      verified: '認證徽章',
+      content: '貼文內容',
+      postImageLabel: '配圖（選填）',
+      uploadImage: '點擊上傳圖片',
+      engagement: '互動數據',
+      replies: '回覆',
+      reposts: '轉推',
+      likes: '喜歡',
+      views: '瀏覽',
+      export: '匯出為 PNG',
+      livePreview: '即時預覽',
+      phName: '暱稱',
+      phHandle: '@使用者名稱',
+      phTime: '例如：2小時、5分鐘、1月12日',
+      phContent: '有什麼新鮮事？！',
+      platform: '截圖樣式',
+      platPlain: '純淨',
+      platPC: '電腦網頁',
+      platAndroid: '安卓手機',
+      postLabel: '貼文',
+      disclaimer: '本工具僅供設計、教育與娛樂用途，產生的是虛構、戲仿性質的樣張。「Postly」為虛構平台，與任何真實社群網路無關。請勿使用這些圖片冒充真實個人或機構、捏造他人未曾發表的言論，或用於任何欺騙性或非法用途。您須對自己建立的內容負責。'
+    },
+    'ja': {
+      title: '投稿スナップショット作成ツール',
+      subtitle: '架空のソーシャル投稿モックアップを作成 — 自由にカスタマイズして画像として書き出し。',
+      customize: '投稿をカスタマイズ',
+      avatar: 'アイコン',
+      chooseImage: '画像を選択',
+      displayName: '表示名',
+      handle: 'ユーザー名',
+      postTime: '投稿時間',
+      verified: '認証バッジ',
+      content: '投稿内容',
+      postImageLabel: '投稿画像（任意）',
+      uploadImage: 'クリックして画像をアップロード',
+      engagement: 'エンゲージメント',
+      replies: '返信',
+      reposts: 'リポスト',
+      likes: 'いいね',
+      views: '表示',
+      export: 'PNG として書き出し',
+      livePreview: 'ライブプレビュー',
+      phName: '表示名',
+      phHandle: '@ユーザー名',
+      phTime: '例：2時間、5分、1月12日',
+      phContent: 'いまどうしてる？',
+      platform: 'スクリーンショット形式',
+      platPlain: 'シンプル',
+      platPC: 'PC ブラウザ',
+      platAndroid: 'Android',
+      postLabel: 'ポスト',
+      disclaimer: 'このツールはデザイン・教育・娯楽のみを目的とした、架空・パロディのモックアップを生成します。「Postly」は架空のプラットフォームであり、実在のソーシャルネットワークとは一切関係ありません。実在の人物や組織になりすましたり、誰も発言していない内容を帰属させたり、欺瞞的・違法な用途に使用しないでください。作成したコンテンツについてはご自身が責任を負います。'
+    }
+  };
+
+  let currentLang = 'en';
+
+  function setLanguage(lang) {
+    currentLang = lang;
+    const dict = I18N[lang];
+    // Text content
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (dict[key] !== undefined) el.textContent = dict[key];
+    });
+    // Placeholders
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      if (dict[key] !== undefined) el.setAttribute('placeholder', dict[key]);
+    });
+    // Active button state
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-lang') === lang);
+    });
+    // Document lang attribute (helps CJK font rendering)
+    document.documentElement.setAttribute('lang', lang);
+  }
+
+  // ── Platform / device frame ──
+  let currentPlatform = 'plain';
+
+  function setPlatform(p) {
+    currentPlatform = p;
+    const frame = document.getElementById('device-frame');
+    frame.className = 'platform-' + p;
+    document.querySelectorAll('#platformSeg button').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-platform') === p);
+    });
+  }
+
+  // Update the browser chrome (tab title + URL) from name/handle
+  function updateChrome() {
+    const name = document.getElementById('displayName').value || 'User';
+    let h = document.getElementById('handle').value || '@user';
+    if (h.startsWith('@')) h = h.slice(1);
+    const tabTitle = document.getElementById('pcTabTitle');
+    const url = document.getElementById('pcUrl');
+    if (tabTitle) tabTitle.textContent = name + ' on Postly';
+    if (url) url.textContent = 'postly.example/' + h + '/post/1789453821';
+  }
+
+  // Android status-bar clock = current local time
+  function setAndroidClock() {
+    const el = document.getElementById('andTime');
+    if (!el) return;
+    const now = new Date();
+    let hh = now.getHours();
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    hh = hh % 12 || 12;
+    el.textContent = hh + ':' + mm;
+  }
+
+
+  const displayNameInput = document.getElementById('displayName');
+  const handleInput = document.getElementById('handle');
+  const postTimeInput = document.getElementById('postTime');
+  const postContentInput = document.getElementById('postContent');
+  const avatarInput = document.getElementById('avatarInput');
+  const postImageInput = document.getElementById('postImageInput');
+
+  const postDisplayName = document.getElementById('postDisplayName');
+  const postHandle = document.getElementById('postHandle');
+  const postTimeDisplay = document.getElementById('postTimeDisplay');
+  const postBody = document.getElementById('postBody');
+  const postAvatarImg = document.getElementById('postAvatarImg');
+  const postImageDisplay = document.getElementById('postImageDisplay');
+  const postImage = document.getElementById('postImage');
+  const avatarPreview = document.getElementById('avatarPreview');
+  const imageZone = document.getElementById('imageZone');
+  const imagePlaceholder = document.getElementById('imagePlaceholder');
+  const postVerified = document.getElementById('postVerified');
+
+  let postImageData = null;
+
+  // Live updates
+  displayNameInput.addEventListener('input', () => {
+    postDisplayName.textContent = displayNameInput.value || 'Name';
+    updateChrome();
+  });
+
+  handleInput.addEventListener('input', () => {
+    let val = handleInput.value;
+    if (val && !val.startsWith('@')) val = '@' + val;
+    postHandle.textContent = val || '@handle';
+    updateChrome();
+  });
+
+  postTimeInput.addEventListener('input', () => {
+    postTimeDisplay.textContent = postTimeInput.value || 'now';
+  });
+
+  postContentInput.addEventListener('input', () => {
+    postBody.textContent = postContentInput.value;
+  });
+
+  // Stats live update
+  ['statReplies', 'statReposts', 'statLikes', 'statViews'].forEach((id, i) => {
+    const targets = ['actionReplies', 'actionReposts', 'actionLikes', 'actionViews'];
+    document.getElementById(id).addEventListener('input', function() {
+      document.getElementById(targets[i]).textContent = this.value;
+    });
+  });
+
+  // Avatar upload
+  avatarInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const url = ev.target.result;
+      postAvatarImg.src = url;
+      postAvatarImg.style.display = 'block';
+      avatarPreview.innerHTML = '<img src="' + url + '">';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Post image upload
+  postImageInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      postImageData = ev.target.result;
+      postImageDisplay.src = postImageData;
+      postImage.style.display = 'block';
+      imageZone.classList.add('has-image');
+      imageZone.innerHTML = '<img src="' + postImageData + '"><button class="remove-img" onclick="removePostImage(event)">✕</button>';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function removePostImage(e) {
+    e.stopPropagation();
+    postImageData = null;
+    postImage.style.display = 'none';
+    postImageDisplay.src = '';
+    imageZone.classList.remove('has-image');
+    imageZone.innerHTML = '<div class="placeholder" id="imagePlaceholder"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg><span data-i18n="uploadImage">' + I18N[currentLang].uploadImage + '</span></div>';
+    postImageInput.value = '';
+  }
+
+  // Verified toggle
+  let isVerified = true;
+  function toggleVerified() {
+    isVerified = !isVerified;
+    document.getElementById('verifiedToggle').classList.toggle('active', isVerified);
+    postVerified.style.display = isVerified ? 'inline-flex' : 'none';
+  }
+
+  // Export as PNG — captures the full device frame (post + chrome)
+  function exportImage() {
+    const target = document.getElementById('device-frame');
+    const scale = 3;
+    const bg = currentPlatform === 'pc' ? '#2b2d31' : '#000000';
+    exportViaCanvas(target, scale, bg);
+  }
+
+  async function exportViaCanvas(element, scale, bg) {
+    try {
+      // Dynamically load html2canvas
+      if (typeof html2canvas === 'undefined') {
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      }
+      const canvas = await html2canvas(element, {
+        scale: scale,
+        backgroundColor: bg || '#000000',
+        useCORS: true,
+        logging: false,
+      });
+      const link = document.createElement('a');
+      link.download = 'post-snapshot-' + currentPlatform + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Export failed:', err);
+      // Fallback
+      fallbackExport(element);
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function fallbackExport(element) {
+    const range = document.createRange();
+    range.selectNode(element);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    alert('Screenshot copied to clipboard! You can paste it in any image editor. (For PNG download, please allow external scripts.)');
+  }
+
+  // ── Init on load ──
+  setLanguage('en');
+  setAndroidClock();
+  updateChrome();
+</script>
+
+</body>
+</html>
